@@ -1,0 +1,52 @@
+name: Build APK (zip)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Unpack project zip
+        run: |
+          for z in *.zip; do
+            if [ -f "$z" ]; then unzip -q -o "$z"; fi
+          done
+          ls
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: "8.9"
+
+      - name: Install Android SDK packages
+        continue-on-error: true
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Find project folder
+        id: proj
+        run: |
+          if [ -f settings.gradle ]; then dir=.; else dir=FastClicker; fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "Project folder: $dir"
+          ls "$dir"
+
+      - name: Build debug APK
+        working-directory: ${{ steps.proj.outputs.dir }}
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: FastClicker-apk
+          path: ${{ steps.proj.outputs.dir }}/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
